@@ -212,10 +212,9 @@ async function callGemini(message, hist){
 
   // 사용 가능한 모델을 순서대로 시도
   const MODELS = [
-    'gemini-2.5-flash',
-    'gemini-2.0-flash-exp',
-    'gemini-2.0-flash-thinking-exp',
+    'gemini-2.0-flash',
     'gemini-1.5-flash',
+    'gemini-1.5-pro',
   ];
 
   let lastErr = null;
@@ -230,7 +229,7 @@ async function callGemini(message, hist){
         const err = await res.json().catch(()=>({}));
         const msg = err?.error?.message || '';
         // 모델이 없거나 더 이상 사용 불가한 경우 다음 모델 시도
-        if(res.status===400 || res.status===404 || msg.toLowerCase().includes('no longer available') || msg.toLowerCase().includes('not found')){
+        if(res.status===400 || res.status===404 || msg.toLowerCase().includes('no longer available') || msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('not supported') || msg.toLowerCase().includes('deprecated')){
           lastErr = new Error(msg || `API 오류 ${res.status}`);
           continue;
         }

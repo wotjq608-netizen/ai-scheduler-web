@@ -210,7 +210,7 @@ async function callGemini(message, hist){
   }
   contents.push({role:'user', parts:[{text: prompt + '\n\n사용자 입력: ' + message}]});
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-latest:generateContent?key=${key}`,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ contents, generationConfig:{ responseMimeType:'application/json', temperature:0.3 } })

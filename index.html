@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>개인 AI 일정관리 대시보드</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f2f5f0;color:#192b25;font:16px system-ui,sans-serif}
+main{max-width:1080px;margin:auto;padding:clamp(16px,5vw,54px)}
+h1{margin:0;font-size:clamp(26px,5vw,42px);color:#1d573e}
+h2{font-size:20px;margin:0 0 16px;color:#1d573e}
+.layout{display:grid;grid-template-columns:1fr 1.1fr;gap:16px}
+section{background:white;border:1px solid #d9e4dc;border-radius:18px;padding:clamp(12px,3vw,24px);min-width:0}
+.brief{margin:12px 0 24px;color:#415b50;font-size:14px}
+button,textarea,input{font:inherit;border:1px solid #a9bfb1;border-radius:8px;padding:8px;color:inherit;background:#fff}
+button{cursor:pointer;transition:background .15s}
+button:hover{background:#e3f0e9}
+textarea{display:block;width:100%;min-height:95px;margin:8px 0;resize:vertical}
+.primary{background:#1d573e;color:white;border:none;padding:10px 20px}
+.primary:hover{background:#14432f}
+.month{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;text-align:center}
+.grid button{padding:5px 0;min-height:46px;font-size:13px}
+.grid button[aria-pressed=true]{background:#d1e8d9;border-color:#327553}
+.grid button[aria-current=date]{font-weight:700;text-decoration:underline}
+.grid small{display:block;font-size:11px;color:#327553}
+ul{padding:0;list-style:none;margin:0}
+li{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #e4ebe6}
+li label{flex:1;overflow-wrap:anywhere;cursor:pointer}
+li small{color:#486358;white-space:nowrap;font-size:12px}
+p{overflow-wrap:anywhere;margin:8px 0}
+summary{cursor:pointer;margin:16px 0 8px;color:#415b50}
+button:focus-visible,textarea:focus-visible,input:focus-visible{outline:3px solid #327553;outline-offset:2px}
+@media(max-width:740px){.layout{grid-template-columns:1fr}}
+.transcript{display:grid;gap:14px;max-height:28rem;overflow:auto;overscroll-behavior:contain;margin-bottom:16px}
+.turn{display:grid;gap:8px}
+.bubble{margin:0;padding:10px 12px;border-radius:12px;white-space:pre-wrap;line-height:1.5}
+.user{background:#e2efe7;justify-self:end;max-width:90%}
+.assistant{background:#f3f6f3}
+.speaker{display:block;margin-bottom:4px;font-size:12px;font-weight:700;color:#415b50}
+.saved{margin:2px 0}
+.saved li{display:block;border:0;padding:2px 0}
+.saved button{width:100%;text-align:left;overflow-wrap:anywhere;font-size:13px;background:#e8f4ed;border-color:#a9c7b3}
+.examples{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.examples button{font-size:13px;background:#f0f8f3}
+.page-header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.engine,.progress{font-size:13px;color:#415b50;margin:4px 0}
+.calendar-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:14px}
+.calendar-actions h3{margin:0;font-size:16px;color:#1d573e}
+textarea[readonly],button:disabled{opacity:.6;cursor:default}
+.badge{background:#1d573e;color:white;border-radius:999px;padding:2px 8px;font-size:12px;margin-left:4px}
+.empty{color:#6b8c7c;font-size:14px;padding:12px 0}
+
+/* API 설정 모달 */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;display:flex;align-items:center;justify-content:center}
+.modal{background:white;border-radius:18px;padding:28px;max-width:420px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.modal h2{margin:0 0 8px}
+.modal p{font-size:14px;color:#415b50;margin:0 0 16px}
+.modal label{display:block;font-size:14px;font-weight:600;margin:12px 0 4px}
+.modal input[type=text],.modal input[type=password]{width:100%;padding:10px;border-radius:8px;border:1px solid #a9bfb1;font:inherit}
+.modal-actions{display:flex;gap:8px;margin-top:18px;justify-content:flex-end}
+.modal-actions button{padding:10px 20px}
+.link{color:#327553;text-decoration:underline;cursor:pointer;background:none;border:none;padding:0;font:inherit}
+.settings-btn{background:none;border:1px solid #a9bfb1;border-radius:8px;padding:6px 12px;font-size:13px;color:#415b50}
+.tag{display:inline-block;background:#e8f4ed;color:#1d573e;border-radius:6px;padding:1px 7px;font-size:12px;margin-right:4px}
+.done-strike{text-decoration:line-through;opacity:.6}
+.cat-건강{color:#e05c00}
+.cat-학습{color:#1a5cb0}
+.cat-여가{color:#7b2c8b}
+.cat-일정{color:#327553}
+.cat-약속{color:#b06d1a}
+.cat-기타{color:#555}
+</style>
+</head>
+<body>
+<main>
+  <header class="page-header">
+    <div>
+      <h1>🌿 개인 AI 일정관리</h1>
+      <p class="brief" id="weather">날씨 정보를 불러오는 중…</p>
+    </div>
+    <button class="settings-btn" id="open-settings">⚙️ API 설정</button>
+  </header>
+
+  <div class="layout">
+    <!-- AI 채팅 섹션 -->
+    <section>
+      <h2>🤖 AI와 일정 관리</h2>
+      <p class="engine" id="engine-info">Gemini API로 자연어 일정을 추가할 수 있습니다. 먼저 ⚙️ API 설정에서 키를 입력하세요.</p>
+      <div id="transcript" class="transcript" role="log" aria-label="대화 내역"></div>
+      <div class="examples" aria-label="예시 입력">
+        <button type="button" data-example="오늘 저녁 7시에 헬스장 가기 일정 추가해줘">🏃 운동 예시</button>
+        <button type="button" data-example="내일 오전 10시 치과 예약이랑 오후 3시 팀 미팅 일정 넣어줘">📅 복수 일정 예시</button>
+        <button type="button" data-example="이번주 토요일 가족 외식 여가 카테고리로 추가해줘">🍽️ 여가 예시</button>
+      </div>
+      <form id="chat">
+        <label for="message">말하듯이 일정을 입력하세요</label>
+        <textarea id="message" required maxlength="2000" placeholder="예) 내일 오후 2시 치과 예약, 토요일 친구 약속 추가해줘"></textarea>
+        <button class="primary" id="send" type="submit">전송 →</button>
+      </form>
+      <p id="reply" role="status"></p>
+    </section>
+
+    <!-- 캘린더 & 할일 섹션 -->
+    <section>
+      <h2>📅 일정</h2>
+      <div class="month">
+        <button id="previous" aria-label="이전 달">‹</button>
+        <strong id="month"></strong>
+        <button id="next" aria-label="다음 달">›</button>
+      </div>
+      <div id="calendar" class="grid"></div>
+      <div class="calendar-actions">
+        <h3 id="selected" tabindex="-1"></h3>
+        <button id="goto-today" disabled>오늘로</button>
+      </div>
+      <p id="progress" class="progress"></p>
+      <ul id="tasks"></ul>
+      <details id="carry" hidden>
+        <summary>⚠️ 지난 미완료 일정 이월</summary>
+        <ul id="overdue"></ul>
+        <button id="move" style="margin-top:8px">선택한 날짜로 이월</button>
+      </details>
+      <p id="status" role="status"></p>
+    </section>
+  </div>
+</main>
+
+<!-- API 설정 모달 -->
+<div class="modal-overlay" id="modal" style="display:none">
+  <div class="modal">
+    <h2>⚙️ API 설정</h2>
+    <p>Gemini API 키를 입력하면 AI가 자연어로 일정을 분석해 추가합니다.<br>
+    키는 이 기기 브라우저에만 저장됩니다 (localStorage).</p>
+    <label>Gemini API 키
+      <input type="password" id="gemini-key" placeholder="AIza..." autocomplete="off">
+    </label>
+    <p style="font-size:13px;margin-top:8px">
+      🔑 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" style="color:#327553">Google AI Studio</a>에서 무료로 발급받을 수 있습니다.
+    </p>
+    <div class="modal-actions">
+      <button id="cancel-modal">취소</button>
+      <button class="primary" id="save-modal">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ======================= 상태 ========================
+const STORAGE_KEY_TASKS = "ai_scheduler_tasks_v1";
+const STORAGE_KEY_API   = "ai_scheduler_gemini_key";
+
+let tasks = loadTasks();
+let today  = getLocalDateString();
+let selected = today;
+let page   = new Date();
+const history = [];
+
+// ======================= 유틸 ========================
+function getLocalDateString(d = new Date()) {
+  return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-');
+}
+function el(id){ return document.getElementById(id); }
+function node(tag, text){ const e=document.createElement(tag); e.textContent=text; return e; }
+function loadTasks(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY_TASKS)||'[]'); }catch{ return []; } }
+function saveTasks(){ localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks)); }
+function getApiKey(){ return localStorage.getItem(STORAGE_KEY_API)||''; }
+
+// ======================= 모달 ========================
+el('open-settings').onclick = () => {
+  el('gemini-key').value = getApiKey();
+  el('modal').style.display = 'flex';
+};
+el('cancel-modal').onclick = () => { el('modal').style.display='none'; };
+el('save-modal').onclick = () => {
+  const key = el('gemini-key').value.trim();
+  if(key) localStorage.setItem(STORAGE_KEY_API, key);
+  else localStorage.removeItem(STORAGE_KEY_API);
+  el('modal').style.display='none';
+  updateEngineInfo();
+};
+el('modal').onclick = e => { if(e.target===el('modal')) el('modal').style.display='none'; };
+
+function updateEngineInfo(){
+  const key = getApiKey();
+  el('engine-info').textContent = key
+    ? '✅ Gemini API 연결됨 — 자연어로 일정을 말해보세요!'
+    : '⚙️ API 설정에서 Gemini API 키를 입력하면 AI 자동 분석이 활성화됩니다.';
+}
+
+// ======================= Gemini API ==================
+const CATEGORIES = ["건강","학습","여가","일정","약속","기타"];
+
+const SYSTEM_PROMPT = `당신은 개인 일정 관리 AI입니다. 사용자가 말하는 일정을 JSON으로 추출하세요.
+응답 형식: {"reply":"친절한 한국어 답변","tasks":[{"title":"일정제목","day":"YYYY-MM-DD","time":"HH:MM 또는 빈문자열","category":"카테고리"}]}
+카테고리는 반드시 다음 중 하나: 건강, 학습, 여가, 일정, 약속, 기타
+오늘 날짜: {TODAY}
+날짜가 명확하지 않으면 오늘로 설정하세요. 절대 JSON 외 텍스트를 추가하지 마세요.`;
+
+async function callGemini(message, hist){
+  const key = getApiKey();
+  if(!key) throw new Error('Gemini API 키가 없습니다. ⚙️ API 설정에서 키를 입력하세요.');
+
+  const prompt = SYSTEM_PROMPT.replace('{TODAY}', today);
+  const contents = [];
+  for(const t of hist.slice(-4)){
+    contents.push({role:'user', parts:[{text:t.message}]});
+    contents.push({role:'model', parts:[{text:t.reply}]});
+  }
+  contents.push({role:'user', parts:[{text: prompt + '\n\n사용자 입력: ' + message}]});
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ contents, generationConfig:{ responseMimeType:'application/json', temperature:0.3 } })
+  });
+  if(!res.ok){
+    const err = await res.json().catch(()=>({}));
+    throw new Error((err?.error?.message)||`API 오류 ${res.status}`);
+  }
+  const data = await res.json();
+  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if(!text) throw new Error('AI 응답이 비어있습니다.');
+  return JSON.parse(text);
+}
+
+// ======================= 폴백 (API 없이) ==============
+function fallbackExtract(message){
+  const dateMap = { '오늘': today };
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  dateMap['내일'] = getLocalDateString(tomorrow);
+  const dayNames = ['일','월','화','수','목','금','토'];
+  const now = new Date();
+  for(let i=1;i<=7;i++){
+    const d = new Date(now); d.setDate(now.getDate()+i);
+    const dn = dayNames[d.getDay()];
+    dateMap[dn+'요일'] = getLocalDateString(d);
+    if(i<=2) dateMap['이번주 '+dn] = getLocalDateString(d);
+  }
+  let day = today;
+  for(const [kw,val] of Object.entries(dateMap)){
+    if(message.includes(kw)){ day=val; break; }
+  }
+  const timeMatch = message.match(/(\d{1,2})시\s*(\d{0,2}분?)?/);
+  let time = '';
+  if(timeMatch){
+    let h = parseInt(timeMatch[1]);
+    const m = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+    if(h<9 && message.includes('오후')) h+=12;
+    else if(message.includes('오후') && h<12) h+=12;
+    time = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  }
+  let category = '기타';
+  if(/운동|헬스|조깅|수영|등산|걷기|건강/.test(message)) category='건강';
+  else if(/공부|학습|강의|수업|시험|과제/.test(message)) category='학습';
+  else if(/영화|놀이|여행|쇼핑|여가|취미/.test(message)) category='여가';
+  else if(/미팅|회의|업무|일정|보고/.test(message)) category='일정';
+  else if(/약속|만남|만나/.test(message)) category='약속';
+  const title = message.replace(/오늘|내일|[월화수목금토일]요일|\d+시|\d+분|오전|오후|이번주|추가|넣어|일정|해줘|줘/g,'').trim() || message.substring(0,30);
+  return { reply:`"${title}" 일정을 ${day}${time?' '+time:''} (${category})에 추가했습니다! (AI 미사용)`, tasks:[{title,day,time,category}] };
+}
+
+// ======================= 날씨 ========================
+async function fetchWeather(){
+  try{
+    const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.978&current=temperature_2m,precipitation&timezone=Asia/Seoul');
+    const data = await res.json();
+    const temp = data.current.temperature_2m;
+    const rain = data.current.precipitation > 0;
+    const outfit = temp<10?'🧥 두꺼운 외투':temp<20?'👕 가벼운 겉옷':'👔 얇은 옷차림';
+    el('weather').textContent = `📍 서울 ${temp}°C · 추천 복장: ${outfit}${rain?' ☂️ 우산 필요':''}`;
+  }catch{
+    el('weather').textContent = '날씨 정보를 불러올 수 없습니다.';
+  }
+}
+
+// ======================= 렌더링 ======================
+function render(){
+  renderCalendar();
+  renderTasks();
+  renderOverdue();
+}
+
+function renderCalendar(){
+  const year = page.getFullYear(), month = page.getMonth();
+  el('month').textContent = `${year}년 ${month+1}월`;
+  const cal = el('calendar');
+  cal.innerHTML = '';
+  const days = ['일','월','화','수','목','금','토'];
+  for(const d of days){ const h=node('div',d); h.style.fontSize='12px'; h.style.padding='4px 0'; h.style.color='#415b50'; cal.append(h); }
+  const first = new Date(year,month,1).getDay();
+  const last  = new Date(year,month+1,0).getDate();
+  for(let i=0;i<first;i++) cal.append(document.createElement('div'));
+  for(let d=1;d<=last;d++){
+    const dateStr = getLocalDateString(new Date(year,month,d));
+    const btn = document.createElement('button');
+    btn.textContent = d;
+    const count = tasks.filter(t=>t.day===dateStr).length;
+    if(count){ const s=document.createElement('small'); s.textContent='●'.repeat(Math.min(count,3)); btn.append(s); }
+    if(dateStr===today) btn.setAttribute('aria-current','date');
+    if(dateStr===selected) btn.setAttribute('aria-pressed','true');
+    btn.onclick = ()=>{ selected=dateStr; render(); el('selected').focus(); };
+    cal.append(btn);
+  }
+  const selDate = new Date(selected+'T00:00:00');
+  el('selected').textContent = `${selDate.getFullYear()}년 ${selDate.getMonth()+1}월 ${selDate.getDate()}일`;
+  el('goto-today').disabled = selected===today;
+}
+
+function renderTasks(){
+  const list = el('tasks');
+  list.innerHTML='';
+  const dayTasks = tasks.filter(t=>t.day===selected).sort((a,b)=>{
+    if(!a.time && !b.time) return 0;
+    if(!a.time) return 1; if(!b.time) return -1;
+    return a.time.localeCompare(b.time);
+  });
+  const done = dayTasks.filter(t=>t.done).length;
+  el('progress').textContent = dayTasks.length ? `✅ ${done}/${dayTasks.length} 완료` : '';
+  if(!dayTasks.length){ list.append(node('li','이날 일정이 없습니다.')); list.firstChild.className='empty'; return; }
+  for(const item of dayTasks){
+    const row=document.createElement('li');
+    const label=document.createElement('label');
+    const check=document.createElement('input');
+    check.type='checkbox'; check.checked=Boolean(item.done);
+    check.onchange = ()=>{
+      item.done = check.checked;
+      saveTasks(); render();
+    };
+    const text = [item.time, item.title].filter(Boolean).join(' ');
+    label.append(check,' ');
+    const span=node('span',text);
+    if(item.done) span.classList.add('done-strike');
+    label.append(span);
+    const cat=node('small',item.category);
+    cat.className='tag cat-'+item.category;
+    const del=node('button','✕');
+    del.style.cssText='padding:2px 8px;font-size:12px;border-color:#e0a0a0;color:#c0392b;background:#fff5f5';
+    del.onclick=()=>{ tasks=tasks.filter(t=>t!==item); saveTasks(); render(); };
+    row.append(label,cat,del);
+    list.append(row);
+  }
+}
+
+function renderOverdue(){
+  const past = tasks.filter(t=>!t.done && t.day<today);
+  el('carry').hidden = !past.length;
+  const list = el('overdue');
+  list.innerHTML='';
+  for(const item of past){
+    const row=document.createElement('li');
+    const label=document.createElement('label');
+    const check=document.createElement('input');
+    check.type='checkbox'; check.value=JSON.stringify(item);
+    label.append(check,' '+item.day+' '+item.title);
+    row.append(label); list.append(row);
+  }
+}
+
+// ======================= 채팅 ========================
+function bubble(label, message, className){
+  const el2=node('p',''); el2.className='bubble '+className;
+  const sp=node('span',label); sp.className='speaker';
+  el2.append(sp, message); return el2;
+}
+
+function showTurn(message, result){
+  const turn=document.createElement('div'); turn.className='turn';
+  turn.append(bubble('나', message,'user'), bubble('🤖 AI 일정관리', result.reply,'assistant'));
+  if(result.tasks.length){
+    turn.append(node('strong','✅ '+result.tasks.length+'개 추가됨'));
+    const saved=node('ul',''); saved.className='saved';
+    for(const task of result.tasks){
+      const btn=node('button',[task.day,task.time,task.title,task.category].filter(Boolean).join(' · '));
+      btn.onclick=()=>{ selected=task.day; render(); el('selected').focus(); };
+      const li=document.createElement('li'); li.append(btn); saved.append(li);
+    }
+    turn.append(saved);
+  }
+  const transcript=el('transcript');
+  transcript.append(turn);
+  transcript.scrollTop=transcript.scrollHeight;
+}
+
+function lockInput(locked){
+  el('send').disabled=locked;
+  el('message').readOnly=locked;
+  for(const e of document.querySelectorAll('[data-example]')) e.disabled=locked;
+}
+
+el('chat').onsubmit = async e => {
+  e.preventDefault();
+  const message=el('message').value.trim();
+  if(!message||el('send').disabled) return;
+  lockInput(true);
+  el('reply').textContent='🤔 일정을 분석하는 중…';
+  try{
+    let result;
+    try{
+      result = await callGemini(message, history);
+    }catch(err){
+      if(!getApiKey()){
+        result = fallbackExtract(message);
+      } else {
+        throw err;
+      }
+    }
+    if(result.tasks){
+      for(const task of result.tasks){
+        tasks.push({...task, id:Date.now()+Math.random(), done:false});
+      }
+      saveTasks();
+    }
+    history.push({message, reply:result.reply});
+    if(history.length>4) history.shift();
+    showTurn(message, result);
+    el('reply').textContent='';
+    el('message').value='';
+    render();
+  }catch(err){
+    el('reply').textContent='❌ ' + err.message;
+  }finally{
+    lockInput(false);
+  }
+};
+
+// ======================= 이월 ========================
+el('goto-today').onclick=()=>{ selected=today; render(); };
+el('previous').onclick=()=>{ page.setMonth(page.getMonth()-1); render(); };
+el('next').onclick=()=>{ page.setMonth(page.getMonth()+1); render(); };
+el('move').onclick=()=>{
+  const checked=[...el('overdue').querySelectorAll(':checked')];
+  if(!checked.length){ el('status').textContent='이월할 일정을 선택하세요.'; return; }
+  if(selected<today){ el('status').textContent='오늘 이후 날짜를 선택하세요.'; return; }
+  for(const check of checked){
+    const item=JSON.parse(check.value);
+    const target=tasks.find(t=>t.id===item.id||(t.title===item.title&&t.day===item.day));
+    if(target) target.day=selected;
+  }
+  saveTasks(); render();
+  el('status').textContent='✅ 이월 완료';
+  setTimeout(()=>el('status').textContent='',2000);
+};
+
+for(const btn of document.querySelectorAll('[data-example]')){
+  btn.onclick=()=>{ el('message').value=btn.dataset.example; el('message').focus(); };
+}
+
+// ======================= 초기화 ======================
+updateEngineInfo();
+fetchWeather();
+render();
+</script>
+</body>
+</html>
